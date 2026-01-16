@@ -1,154 +1,113 @@
-# custom app config
-# overrides DCAPE/apps/drone/dcape-app/docker-compose.yml
-
-version: '3.4'
+networks:
+  default:
+    name: ${DCAPE_NET}
+    external: true
 
 services:
-  app:
+  app: &netbox
+    image: ${IMAGE}:${IMAGE_VER}
+    restart: always
     depends_on:
-    - redis
-    - redis-cache
+     - redis
+     - redis-cache
     user: 'unit:root'
     healthcheck:
-      start_period: 60s
+      test: curl -f http://localhost:8080/login/ || exit 1
+      start_period: 300s # netbox default is 90 but first run can took 150s+
       timeout: 3s
       interval: 15s
-      test: "curl -f http://localhost:8080/api/ || exit 1"
     volumes:
-      - ${APP_ROOT}/configuration:/etc/netbox/config:ro
-      - ${DCAPE_ROOT}/${DATA_PATH}/media:/opt/netbox/netbox/media
-      - ${DCAPE_ROOT}/${DATA_PATH}/reports:/opt/netbox/netbox/reports
-      - ${DCAPE_ROOT}/${DATA_PATH}/scripts:/opt/netbox/netbox/scripts
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - ./configuration:/etc/netbox/config:ro
+      - ./media:/opt/netbox/netbox/media
+      - ./reports:/opt/netbox/netbox/reports
+      - ./scripts:/opt/netbox/netbox/scripts
     labels:
+      - traefik.enable=true
+      - dcape.traefik.tag=${DCAPE_TAG}
+      - traefik.http.routers.${APP_TAG}.rule=Host(`${APP_SITE:?Must be set}`)
+      - traefik.http.routers.${APP_TAG}.tls=${USE_TLS}
+      - traefik.http.routers.${APP_TAG}.tls.certresolver=default
       - traefik.http.services.${APP_TAG}.loadbalancer.server.port=8080
     environment:
+      - API_TOKEN_PEPPER_1=Qy+F=OTeGskWQ(wTMgjc+NPPlz6YwFXY=KHIIg=wpYXT&e(6u8
+      - CORS_ORIGIN_ALLOW_ALL=True
       - DB_HOST=db
       - DB_NAME=${PGDATABASE}
       - DB_USER=${PGUSER}
       - DB_PASSWORD=${PGPASSWORD}
-      - DB_WAIT_DEBUG=1
-      - REDIS_PASSWORD
-      - REDIS_CACHE_PASSWORD
-      - SECRET_KEY
       - EMAIL_FROM
       - EMAIL_PASSWORD
       - EMAIL_PORT
       - EMAIL_SERVER
+      - EMAIL_SSL_CERTFILE
+      - EMAIL_SSL_KEYFILE
+      - EMAIL_TIMEOUT
       - EMAIL_USERNAME
-      - EMAIL_TIMEOUT=5
       # EMAIL_USE_SSL and EMAIL_USE_TLS are mutually exclusive, i.e. they can't both be `true`!
-      - EMAIL_USE_SSL=false
-      - EMAIL_USE_TLS=false
-      - GRAPHQL_ENABLED=true
-      - HOUSEKEEPING_INTERVAL=86400
-      - MEDIA_ROOT=/opt/netbox/netbox/media
+      - EMAIL_USE_SSL
+      - EMAIL_USE_TLS
+      - GRAPHQL_ENABLED
+      - MEDIA_ROOT
       - METRICS_ENABLED=false
       - REDIS_CACHE_DATABASE=1
       - REDIS_CACHE_HOST=redis-cache
       - REDIS_CACHE_INSECURE_SKIP_TLS_VERIFY=false
+      - REDIS_CACHE_PASSWORD
       - REDIS_CACHE_SSL=false
       - REDIS_DATABASE=0
       - REDIS_HOST=redis
       - REDIS_INSECURE_SKIP_TLS_VERIFY=false
+      - REDIS_PASSWORD
       - REDIS_SSL=false
       - RELEASE_CHECK_URL=https://api.github.com/repos/netbox-community/netbox/releases
+      - SECRET_KEY
       - SKIP_SUPERUSER=true
       - WEBHOOKS_ENABLED=true
-      - CORS_ORIGIN_ALLOW_ALL=True
 
-  netbox-worker:
-    image: ${IMAGE}:${IMAGE_VER}
+  worker:
+    <<: *netbox
     depends_on:
       app:
         condition: service_healthy
     command:
-    - /opt/netbox/venv/bin/python
-    - /opt/netbox/netbox/manage.py
-    - rqworker
+      - /opt/netbox/venv/bin/python
+      - /opt/netbox/netbox/manage.py
+      - rqworker
     healthcheck:
+      test: ps -aux | grep -v grep | grep -q rqworker || exit 1
       start_period: 20s
       timeout: 3s
       interval: 15s
-      test: "ps -aux | grep -v grep | grep -q rqworker || exit 1"
-    networks:
-      - lan
-    environment:
-      - DB_HOST=db
-      - DB_NAME=${PGDATABASE}
-      - DB_USER=${PGUSER}
-      - DB_PASSWORD=${PGPASSWORD}
-      - REDIS_PASSWORD
-      - REDIS_CACHE_PASSWORD
-      - SECRET_KEY
-      - GRAPHQL_ENABLED=true
-      - HOUSEKEEPING_INTERVAL=86400
-      - MEDIA_ROOT=/opt/netbox/netbox/media
-      - METRICS_ENABLED=false
-      - REDIS_CACHE_DATABASE=1
-      - REDIS_CACHE_HOST=redis-cache
-      - REDIS_CACHE_INSECURE_SKIP_TLS_VERIFY=false
-      - REDIS_CACHE_SSL=false
-      - REDIS_DATABASE=0
-      - REDIS_HOST=redis
-      - REDIS_INSECURE_SKIP_TLS_VERIFY=false
-      - REDIS_SSL=false
-      - RELEASE_CHECK_URL=https://api.github.com/repos/netbox-community/netbox/releases
-      - SKIP_SUPERUSER=true
-      - WEBHOOKS_ENABLED=true
-      - CORS_ORIGIN_ALLOW_ALL=True
+    labels:
+      - traefik.enable=false
 
-  netbox-housekeeping:
-    image: ${IMAGE}:${IMAGE_VER}
-    depends_on:
-      app:
-        condition: service_healthy
-    command:
-    - /opt/netbox/housekeeping.sh
-    healthcheck:
-      start_period: 20s
-      timeout: 3s
-      interval: 15s
-      test: "ps -aux | grep -v grep | grep -q housekeeping || exit 1"
-    networks:
-      - lan
-    environment:
-      - DB_HOST=db
-      - DB_NAME=${PGDATABASE}
-      - DB_USER=${PGUSER}
-      - DB_PASSWORD=${PGPASSWORD}
-      - REDIS_PASSWORD
-      - REDIS_CACHE_PASSWORD
-      - SECRET_KEY
-      - GRAPHQL_ENABLED=true
-      - HOUSEKEEPING_INTERVAL=86400
-      - MEDIA_ROOT=/opt/netbox/netbox/media
-      - METRICS_ENABLED=false
-      - REDIS_CACHE_DATABASE=1
-      - REDIS_CACHE_HOST=redis-cache
-      - REDIS_CACHE_INSECURE_SKIP_TLS_VERIFY=false
-      - REDIS_CACHE_SSL=false
-      - REDIS_DATABASE=0
-      - REDIS_HOST=redis
-      - REDIS_INSECURE_SKIP_TLS_VERIFY=false
-      - REDIS_SSL=false
-      - RELEASE_CHECK_URL=https://api.github.com/repos/netbox-community/netbox/releases
-      - SKIP_SUPERUSER=true
-      - WEBHOOKS_ENABLED=true
-      - CORS_ORIGIN_ALLOW_ALL=True
-
-  # redis
   redis:
     image: ${REDIS_IMAGE}:${REDIS_IMAGE_VER}
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command:
+      - sh
+      - -c # this is to evaluate the $REDIS_PASSWORD from the env
+      - valkey-server --appendonly yes --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
+    healthcheck: &redis-healthcheck
+      test: '[ $$(valkey-cli --pass "$${REDIS_PASSWORD}" ping) = ''PONG'' ]'
+      start_period: 5s
+      timeout: 3s
+      interval: 1s
+      retries: 5
+    environment:
+      - REDIS_PASSWORD
     volumes:
-      - ${DCAPE_ROOT}/${DATA_PATH}/redis:/data
-    networks:
-      - lan
-
+      - ./redis-data:/data
   redis-cache:
     image: ${REDIS_IMAGE}:${REDIS_IMAGE_VER}
-    command: redis-server --requirepass ${REDIS_CACHE_PASSWORD}
+    command:
+      - sh
+      - -c # this is to evaluate the $REDIS_PASSWORD from the env
+      - valkey-server --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
+    healthcheck: *redis-healthcheck
+    environment:
+      - REDIS_PASSWORD=${REDIS_CACHE_PASSWORD}
     volumes:
-      - ${DCAPE_ROOT}/${DATA_PATH}/redis-cache:/data
-    networks:
-      - lan
+      - ./redis-cache-data:/data

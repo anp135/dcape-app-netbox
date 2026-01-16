@@ -13,7 +13,7 @@
 ## Docker image used
 
 * [netbox](https://hub.docker.com/r/netboxcommunity/netbox/)
-* redis
+* [redis](https://hub.docker.com/r/valkey/valkey)
 
 ## Requirements
 
@@ -36,4 +36,4 @@ See also: [Deploy setup](https://github.com/dopos/dcape/blob/master/DEPLOY.md) (
 
 The MIT License (MIT), see [LICENSE](LICENSE).
 
-Copyright (c) 2023 Aleksei Kovrizhkin <lekovr+dopos@gmail.com>
+Copyright (c) 2023 Aleksei Kovrizhkin <lekovr+dopos@gmail.com>, Andrey Pazychev <anp135+dopos@gmail.com>
