@@ -13,7 +13,7 @@ APP_NAME           ?= service-netbox
 IMAGE              ?= docker.io/netboxcommunity/netbox
 
 #- Docker image tag
-IMAGE_VER          ?= v4.4-3.4.1
+IMAGE_VER          ?= v4.5.0-3.4.2
 
 # Do not use Dcape common app service
 USE_DCAPE_DC       = false
